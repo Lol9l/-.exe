@@ -1,0 +1,20 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labyrint-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: labyrint
+  template:
+    metadata:
+      labels:
+        app: labyrint
+    spec:
+      containers:
+      - name: labyrint
+        image: IMAGE_PLACEHOLDER
+        ports:
+        - containerPort: 80
