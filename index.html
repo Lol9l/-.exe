@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K8s Cloud Maze</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e; /* Темно-синий фон */
+            color: #e94560;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-size: 24px;
+            color: #16213e;
+            background: #0f3460;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.5);
+            color: #fff;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            border: 4px solid #0f3460;
+            border-radius: 4px;
+        }
+
+        canvas {
+            display: block;
+            background-color: #16213e;
+        }
+
+        .controls {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #a0a0a0;
+        }
+
+        .status {
+            margin-top: 5px;
+            font-weight: bold;
+            color: #e94560;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>CLOUD MAZE: K8s Edition</h1>
+    
+    <div id="game-container">
+        <canvas id="mazeCanvas" width="600" height="600"></canvas>
+    </div>
+
+    <div class="status" id="statusText">Доберись до зеленого выхода!</div>
+    <div class="controls">Управление: Стрелки или WASD</div>
+
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusText = document.getElementById('statusText');
+
+        // Настройки лабиринта
+        const cols = 20;
+        const rows = 20;
+        const size = canvas.width / cols;
+
+        let grid = [];
+        let stack = [];
+        let current;
+        let player = { col: 0, row: 0 };
+        let goal = { col: cols - 1, row: rows - 1 };
+
+        // Инициализация
+        setup();
+
+        function setup() {
+            grid = [];
+            stack = [];
+            player = { col: 0, row: 0 };
+            
+            // Создаем сетку
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let cell = new Cell(c, r);
+                    grid.push(cell);
+                }
+            }
+            
+            current = grid[0];
+            generateMaze();
+            draw();
+        }
+
+        // Объект ячейки
+        function Cell(c, r) {
+            this.c = c;
+            this.r = r;
+            this.walls = [true, true, true, true]; // Top, Right, Bottom, Left
+            this.visited = false;
+
+            this.checkNeighbors = function() {
+                let neighbors = [];
+                let top = grid[index(c, r - 1)];
+                let right = grid[index(c + 1, r)];
+                let bottom = grid[index(c, r + 1)];
+                let left = grid[index(c - 1, r)];
+
+                if (top && !top.visited) neighbors.push(top);
+                if (right && !right.visited) neighbors.push(right);
+                if (bottom && !bottom.visited) neighbors.push(bottom);
+                if (left && !left.visited) neighbors.push(left);
+
+                if (neighbors.length > 0) {
+                    let r = Math.floor(Math.random() * neighbors.length);
+                    return neighbors[r];
+                } else {
+                    return undefined;
+                }
+            }
+        }
+
+        function index(c, r) {
+            if (c < 0 || r < 0 || c > cols - 1 || r > rows - 1) return -1;
+            return c + r * cols;
+        }
+
+        // Генерация лабиринта (DFS алгоритм)
+        function generateMaze() {
+            // Быстрая генерация без анимации, чтобы игра сразу была готова
+            let active = true;
+            current.visited = true;
+            
+            while(active) {
+                let next = current.checkNeighbors();
+                if (next) {
+                    next.visited = true;
+                    stack.push(current);
+                    removeWalls(current, next);
+                    current = next;
+                } else if (stack.length > 0) {
+                    current = stack.pop();
+                } else {
+                    active = false;
+                }
+            }
+        }
+
+        function removeWalls(a, b) {
+            let x = a.c - b.c;
+            if (x === 1) { a.walls[3] = false; b.walls[1] = false; }
+            if (x === -1) { a.walls[1] = false; b.walls[3] = false; }
+            let y = a.r - b.r;
+            if (y === 1) { a.walls[0] = false; b.walls[2] = false; }
+            if (y === -1) { a.walls[2] = false; b.walls[0] = false; }
+        }
+
+        // Отрисовка
+        function draw() {
+            ctx.fillStyle = "#16213e";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < grid.length; i++) {
+                drawCell(grid[i]);
+            }
+
+            // Отрисовка игрока
+            ctx.fillStyle = "#e94560"; // Красный
+            ctx.fillRect(player.col * size + 5, player.row * size + 5, size - 10, size - 10);
+
+            // Отрисовка финиша
+            ctx.fillStyle = "#0f0"; // Зеленый
+            ctx.fillRect(goal.col * size + 5, goal.row * size + 5, size - 10, size - 10);
+        }
+
+        function drawCell(cell) {
+            let x = cell.c * size;
+            let y = cell.r * size;
+
+            ctx.strokeStyle = "#4ecca3"; // Цвет стен
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            if (cell.walls[0]) { ctx.moveTo(x, y); ctx.lineTo(x + size, y); } // Top
+            if (cell.walls[1]) { ctx.moveTo(x + size, y); ctx.lineTo(x + size, y + size); } // Right
+            if (cell.walls[2]) { ctx.moveTo(x + size, y + size); ctx.lineTo(x, y + size); } // Bottom
+            if (cell.walls[3]) { ctx.moveTo(x, y + size); ctx.lineTo(x, y); } // Left
+            ctx.stroke();
+        }
+
+        // Управление
+        document.addEventListener('keydown', (e) => {
+            let currentCell = grid[index(player.col, player.row)];
+            let moved = false;
+
+            if ((e.key === 'ArrowUp' || e.key === 'w') && !currentCell.walls[0]) {
+                player.row--; moved = true;
+            } else if ((e.key === 'ArrowRight' || e.key === 'd') && !currentCell.walls[1]) {
+                player.col++; moved = true;
+            } else if ((e.key === 'ArrowDown' || e.key === 's') && !currentCell.walls[2]) {
+                player.row++; moved = true;
+            } else if ((e.key === 'ArrowLeft' || e.key === 'a') && !currentCell.walls[3]) {
+                player.col--; moved = true;
+            }
+
+            if (moved) {
+                draw();
+                checkWin();
+            }
+        });
+
+        function checkWin() {
+            if (player.col === goal.col && player.row === goal.row) {
+                statusText.innerText = "ПОБЕДА! Лабиринт пройден!";
+                statusText.style.color = "#0f0";
+                setTimeout(() => {
+                    alert("Cluster Node Reached! Generating new infrastructure...");
+                    setup(); // Рестарт
+                    statusText.innerText = "Доберись до зеленого выхода!";
+                    statusText.style.color = "#e94560";
+                }, 100);
+            }
+        }
+    </script>
+</body>
+</html>
